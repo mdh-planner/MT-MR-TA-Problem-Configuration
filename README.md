@@ -14,3 +14,5 @@ ILP implementation can be found. Definition of variables and constraints can be 
 
 The compiled version you can run by simply starting the *.exe file and entering the number from 0-29 (the 30 instances in the paper, the counting starts from 0,
 so 0 maps to instance 1 and so on). 
+
+If you have any questions you can contact me via Email branko.miloradovic@mdu.se
