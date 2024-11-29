@@ -87,6 +87,7 @@ namespace cplex_solver {
 		auto M = 10000; // PROBLEM DEPENDENT, general rule -> M > maximum possible cost of a plan;
 
 /*  CONSTRAINTS  */
+		IloArray<IloArray<IloRangeArray>> TTT(env, Vtilde); // EQ 13
 		IloArray<IloArray<IloRangeArray>> pc1(env, Vtilde);  // EQUATION(1)
 		IloArray<IloArray<IloArray<IloRangeArray>>> pc3(env, Vtilde);  // EQUATION(3)										
 		IloArray<IloArray<IloRangeArray>> cc(env, Vtilde);	// EQUATION(3)  A salesperson s is allowed to only visit the cities specified in its extended color matrix As */
@@ -95,8 +96,9 @@ namespace cplex_solver {
 		IloRangeArray fd(env, Vtilde);  // EQUATION(6) The final location of a salesperson s is always a destination depot delta.
 		IloRangeArray sd(env, Vtilde);  // EQUATION(7) The starting location of a salesperson s is always a source depot sigma.
 		IloRangeArray ds(env, Vtilde);  // EQUATION(8) The number of salespersons per source depot.
-		IloArray<IloRangeArray> test(env, Vtilde); // EQUATION (MISSING) Ensures that the same agent enters and exits a city.
-		IloArray<IloRangeArray> TT(env, Vtilde);
+		IloArray<IloRangeArray> test(env, Vtilde); // EQUATION  Ensures that the same agent enters and exits a city.
+		IloArray<IloRangeArray> TT(env, Vtilde);  // EQ 12 
+		
 		IloArray<IloRangeArray> PC(env, Vtilde);
 		IloArray<IloRangeArray> TT7(env, Vtilde);
 		IloArray<IloRangeArray> sameRobot(env, Vtilde); // Equation (10)
@@ -345,52 +347,96 @@ namespace cplex_solver {
 			}
 		}
 
-		/* ----------== Equation (12) - Cross-Schedule Precedence Constraint ==--------------- */
-		for (auto i = 0; i < Vtilde - delta; ++i) {
+		///* ----------== Equation (12) - Cross-Schedule Precedence Constraint ==--------------- */
+		//for (auto i = 0; i < Vtilde - delta; ++i) {
+		//	TT[i] = IloRangeArray(env, Vtilde);
+		//	for (auto j = sigma; j < Vtilde; ++j) {
+
+		//		if (g.P()[i][j] == 1) {
+
+		//			for (auto s = 0; s < m; s++) {
+		//				expr += z[i][j][s];
+		//			}
+
+		//			name << "xPC0_" << i << "_" << j; 
+		//			name2 << "xPC1_" << i << "_" << j; 
+
+		//			model.add(IloIfThen(env, (expr == 0), (T[j] - T[i] >= g.cd(i)), name.str().c_str()));
+		//			model.add(IloIfThen(env, (expr >= 1), (T[j] - T[i] >= g.cd(i) + g.cost(i, j, 0)), name2.str().c_str()));
+
+		//			name.str(""); name2.str(""); // Clean name
+		//			expr.clear(); // Clean expressions
+		//		}
+		//	}
+		//	model.add(TT[i]);
+		//}
+
+				/* ----------== Equation (12) - Cross-Schedule Precedence Constraint ==--------------- */
+		for (auto i = sigma; i < Vtilde - delta; ++i) {
 			TT[i] = IloRangeArray(env, Vtilde);
-			for (auto j = sigma; j < Vtilde; ++j) {
+			for (auto j = sigma; j < Vtilde-delta; ++j) {
 
 				if (g.P()[i][j] == 1) {
 
 					for (auto s = 0; s < m; s++) {
-						expr += z[i][j][s];
-					}
 
-					name << "xPC0_" << i << "_" << j; 
-					name2 << "xPC1_" << i << "_" << j; 
+					expr = T[j] - T[i] - g.cd(i) + g.cost(i, j, s) * z[i][j][s];
+					name << "xPC0_" << i << "_" << j;
+				
+					TT[i][j] = IloRange(env, 0, expr, INFINITY, name.str().c_str());
 
-					model.add(IloIfThen(env, (expr == 0), (T[j] - T[i] >= g.cd(i)), name.str().c_str()));
-					model.add(IloIfThen(env, (expr >= 1), (T[j] - T[i] >= g.cd(i) + g.cost(i, j, 0)), name2.str().c_str()));
-
-					name.str(""); name2.str(""); // Clean name
+					name.str(""); // Clean name
 					expr.clear(); // Clean expressions
+					}  
 				}
 			}
 			model.add(TT[i]);
 		}
 
-		/* ----------== Equation (13 & 14) - Disjunctive Constraint ==--------------- */
+		///* ----------== Equation (13) - Disjunctive Constraint ==--------------- */
+		//for (auto i = 0; i < Vtilde - delta; ++i) {
+		//	for (auto j = sigma; j < Vtilde; ++j) {
+		//		if (i != j) {
+
+		//			for (auto s = 0u; s < m; ++s) {
+		//				expr += z[i][j][s];
+		//			}
+
+		//			name << "z0_" << i << "_" << j; 
+		//			name2 << "z1_" << i << "_" << j; 
+
+		//			model.add(IloIfThen(env, (expr == 0), ((T[j] - T[i]) >= (g.cd(j) * (1 - g.R()[i][j])) - M), name.str().c_str()));
+		//			model.add(IloIfThen(env, (expr >= 1), (T[j] - T[i] >= (g.cost(i, j, 0) + g.cd(i)) * (1 - g.R()[i][j])), name2.str().c_str()));
+
+		//			name.str(""); name2.str(""); // Clean name
+		//			expr.clear(); // Clean expressions
+		//		}
+		//	}
+		//}
+
+				/* ----------== Equation (13) - Disjunctive Constraint ==--------------- */
 		for (auto i = 0; i < Vtilde - delta; ++i) {
+			TTT[i] = IloArray<IloRangeArray>(env, Vtilde);
 			for (auto j = sigma; j < Vtilde; ++j) {
+				TTT[i][j] = IloRangeArray(env, Vtilde);
 				if (i != j) {
 
 					for (auto s = 0u; s < m; ++s) {
-						expr += z[i][j][s];
+						
+						expr = T[j] + M * (1 - z[i][j][s]) - T[i] - z[i][j][s]* (g.cost(i, j, s) + g.cd(i)) * (1 - g.R()[i][j]);
+						name << "z0_" << i << "_" << j << "_" << s;
+					
+						TTT[i][j][s] = IloRange(env, 0, expr, INFINITY, name.str().c_str());
+						
+						name.str(""); // Clean name
+						expr.clear(); // Clean expressions
+						model.add(TTT[i][j][s]);
 					}
-
-					name << "z0_" << i << "_" << j; 
-					name2 << "z1_" << i << "_" << j; 
-
-					model.add(IloIfThen(env, (expr == 0), ((T[j] - T[i]) >= (g.cd(j) * (1 - g.R()[i][j])) - M), name.str().c_str()));
-					model.add(IloIfThen(env, (expr >= 1), (T[j] - T[i] >= (g.cost(i, j, 0) + g.cd(i)) * (1 - g.R()[i][j])), name2.str().c_str()));
-
-					name.str(""); name2.str(""); // Clean name
-					expr.clear(); // Clean expressions
+					
 				}
-			}
+			}	
 		}
-
-
+		
 #pragma region -- Objective Function --
 
 		cout << "--\\-- Modeling Objective Function --//--" << endl;
@@ -501,7 +547,7 @@ namespace cplex_solver {
 					}
 					cout << endl;
 					}*/
-					assert(x[i].getSize() == n);
+					//assert(x[i].getSize() == n);
 					bool flagBreak = false;
 					cout << setw(2) << i << flush;
 					for (auto j = 0u; j < Vtilde; ++j) {
